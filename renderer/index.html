@@ -84,6 +84,14 @@
           <div style="font:700 17px 'IBM Plex Sans';color:#e6edf3;">{{ appName }}</div>
           <div style="font:500 10.5px/1 'IBM Plex Mono';color:#5b6571;letter-spacing:.06em;margin-top:6px;">VERSION {{ appVersion }} · LICENSED DESKTOP EDITION</div>
         </div>
+        <div style="background:#10151c;border:1px solid #2d3742;border-radius:9px;padding:13px 14px;margin-bottom:18px;">
+          <div style="font:600 9.5px/1 'IBM Plex Mono';color:#5b6571;letter-spacing:.08em;">THIS COMPUTER'S MACHINE ID</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;">
+            <span style="font:700 15px/1 'IBM Plex Mono';color:#e6edf3;letter-spacing:.05em;">{{ machineId }}</span>
+            <button onClick="{{ copyMachineId }}" style="background:transparent;border:1px solid #2d3742;border-radius:6px;color:#8b95a1;font:600 10.5px 'IBM Plex Sans';padding:6px 10px;cursor:pointer;flex-shrink:0;">{{ midCopyLabel }}</button>
+          </div>
+          <div style="font:500 10px/1.5 'IBM Plex Mono';color:#46505c;margin-top:9px;">Send this ID with your name to request a key. Each key works on one computer only.</div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px;">
           <span style="font:600 9.5px/1 'IBM Plex Mono';color:#5b6571;letter-spacing:.08em;">LICENSED TO</span>
           <input type="text" value="{{ licenseNameDraft }}" onInput="{{ onLicenseNameInput }}" placeholder="Name or company" style="background:#10151c;border:1px solid #232b36;border-radius:8px;padding:10px 12px;color:#e6edf3;font:600 13px 'IBM Plex Sans';" />
@@ -1791,6 +1799,7 @@
           <div style="font:600 9.5px/1 'IBM Plex Mono';color:#5b6571;letter-spacing:.06em;">LICENSED TO</div>
           <div style="font:600 12.5px 'IBM Plex Sans';color:#e6edf3;margin-top:5px;">{{ licensedTo }}</div>
           <div style="font:500 10px/1 'IBM Plex Mono';color:#46505c;margin-top:4px;letter-spacing:.03em;">{{ licenseKey }}</div>
+          <div style="font:500 10px/1 'IBM Plex Mono';color:#46505c;margin-top:6px;">Machine ID {{ machineId }}</div>
           <div style="font:600 10.5px/1 'IBM Plex Mono';color:{{ accent }};margin-top:10px;">Valid until {{ licenseExpiresStr }} · {{ licenseDaysLeft }} days left</div>
           <div style="font:500 10px/1 'IBM Plex Mono';color:#46505c;margin-top:14px;">Publisher: Ujash Solanki</div>
         </div>
@@ -1839,7 +1848,8 @@ class Component extends DCLogic {
       alloys: DEFAULT_ALLOYS, editMaterials:false, newMat:{name:'',rho:''},
       meta:{ project:'Trägerplatte', customer:'Mercedes', version:'V9 (Mold No.3)' },
       saved: this._loadSaved(), savedOpen:false, justSaved:false,
-      license: this._loadLicense(), licenseNameDraft:'', licenseKeyDraft:'', licenseError:'', aboutOpen:false,
+      machineIdInit: (this.machineId = this._loadMachineId()),
+      license: this._loadLicense(), licenseNameDraft:'', licenseKeyDraft:'', licenseError:'', aboutOpen:false, midCopied:false,
       prefs: this._loadPrefs(), settingsOpen:false,
       compareOpen:false, compareSel:[], compareDragId:null, compareDragOverId:null, importMsg:'', exportOpen:false,
       currentFileName:null, fileMsg:'', guideOpen:false, saveAsOpen:false, saveAsName:'',
@@ -2800,13 +2810,32 @@ class Component extends DCLogic {
   };
   onLicenseNameInput = (e)=> this.setState({licenseNameDraft:e.target.value, licenseError:''});
   onLicenseKeyInput = (e)=> this.setState({licenseKeyDraft:e.target.value.toUpperCase(), licenseError:''});
-  // Offline signed-key scheme shared with Key Generator.dc.html — must stay in sync.
+  // Offline signed-key scheme shared with the Key Generator — must stay in sync.
+  // Keys are bound to name + THIS machine's id + expiry date, so a key issued
+  // for one computer will not activate on another.
   _LIC_SECRET = 'HPDC-UJASH-2026-SECRET';
   _b36(n,len){ let s=Math.max(0,Math.floor(n)).toString(36).toUpperCase(); while(s.length<len) s='0'+s; return s.slice(-len); }
   _hashCode(str){ let h=5381; for(let i=0;i<str.length;i++){ h=((h*33)^str.charCodeAt(i))>>>0; } return h; }
-  _checksum(nameNorm, expiryDays){
-    const h1=this._hashCode(this._LIC_SECRET+'|'+nameNorm+'|'+expiryDays);
-    const h2=this._hashCode(nameNorm+'|'+this._LIC_SECRET+'|'+expiryDays+'|'+h1);
+  _loadMachineId(){
+    let id;
+    try{ id = localStorage.getItem('hpdc_machine_id_v1'); }catch(e){}
+    if (!id || !/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(id)){
+      const rnd = ()=>{
+        let s='';
+        const alpha='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusable 0/O/1/I
+        const buf = new Uint8Array(4);
+        (window.crypto||window.msCrypto).getRandomValues(buf);
+        for(let i=0;i<4;i++) s += alpha[buf[i]%alpha.length];
+        return s;
+      };
+      id = rnd()+'-'+rnd()+'-'+rnd();
+      try{ localStorage.setItem('hpdc_machine_id_v1', id); }catch(e){}
+    }
+    return id;
+  }
+  _checksum(nameNorm, machineId, expiryDays){
+    const h1=this._hashCode(this._LIC_SECRET+'|'+nameNorm+'|'+machineId+'|'+expiryDays);
+    const h2=this._hashCode(nameNorm+'|'+machineId+'|'+this._LIC_SECRET+'|'+expiryDays+'|'+h1);
     return this._b36(h1,8)+this._b36(h2,7);
   }
   _verifyKey(name, key){
@@ -2815,19 +2844,33 @@ class Component extends DCLogic {
     const expiryDays = parseInt(clean.slice(0,5),36);
     if (!isFinite(expiryDays)) return {valid:false, reason:'Key format is invalid.'};
     const nameNorm = name.trim().toUpperCase().replace(/\s+/g,' ');
-    const expected = this._checksum(nameNorm, expiryDays);
-    if (expected !== clean.slice(5)) return {valid:false, reason:'This key does not match the name entered, or is invalid.'};
+    const expected = this._checksum(nameNorm, this.machineId, expiryDays);
+    if (expected !== clean.slice(5)) return {valid:false, reason:'This key is not valid for this name and this computer. Check the name spelling, and that the key was issued for Machine ID '+this.machineId+'.'};
     const expiresAt = new Date(expiryDays*86400000 + 86399999);
     if (Date.now() > expiresAt.getTime()) return {valid:false, reason:'This key\'s validity period has already expired.'};
     return {valid:true, expiresAt};
   }
+  copyMachineId = ()=>{
+    const txt = this.machineId;
+    const done = ()=>{
+      this.setState({midCopied:true});
+      clearTimeout(this._midT); this._midT=setTimeout(()=>this.setState({midCopied:false}),1500);
+    };
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done,()=>{}); return; }
+    }catch(e){}
+    try{
+      const t=document.createElement('textarea'); t.value=txt; document.body.appendChild(t); t.select();
+      document.execCommand('copy'); document.body.removeChild(t); done();
+    }catch(e){}
+  };
   activateLicense = ()=>{
     const key = this.state.licenseKeyDraft.trim();
     const name = this.state.licenseNameDraft.trim();
     if (!name){ this.setState({licenseError:'Enter a name or company for this license.'}); return; }
     const v = this._verifyKey(name, key);
     if (!v.valid){ this.setState({licenseError:v.reason}); return; }
-    const lic = { name, key:key.toUpperCase(), activatedAt:new Date().toISOString(), expiresAt:v.expiresAt.toISOString() };
+    const lic = { name, key:key.toUpperCase(), machineId:this.machineId, activatedAt:new Date().toISOString(), expiresAt:v.expiresAt.toISOString() };
     try{ localStorage.setItem('hpdc_license_v1', JSON.stringify(lic)); }catch(e){}
     this.setState({license:lic, licenseError:''});
   };
@@ -2837,8 +2880,13 @@ class Component extends DCLogic {
   };
   checkLicenseExpiry = ()=>{
     const lic = this.state.license;
-    if (lic && lic.expiresAt && Date.now() > new Date(lic.expiresAt).getTime()){
-      this.deactivateLicense('Your 6-month license period has ended. Enter a new activation key to reactivate.');
+    if (!lic) return;
+    if (lic.machineId !== this.machineId){
+      this.deactivateLicense('This license was activated on a different computer. Each key is valid for one machine only — request a key for Machine ID '+this.machineId+'.');
+      return;
+    }
+    if (lic.expiresAt && Date.now() > new Date(lic.expiresAt).getTime()){
+      this.deactivateLicense('Your license period has ended. Enter a new activation key to reactivate.');
     }
   };
 
@@ -3902,6 +3950,8 @@ class Component extends DCLogic {
       licenseDaysLeft:this.state.license&&this.state.license.expiresAt?Math.max(0,Math.ceil((new Date(this.state.license.expiresAt).getTime()-Date.now())/86400000)):0,
       licenseNameDraft:this.state.licenseNameDraft, licenseKeyDraft:this.state.licenseKeyDraft,
       licenseError:this.state.licenseError, hasLicenseError:!!this.state.licenseError,
+      machineId:this.machineId, copyMachineId:this.copyMachineId,
+      midCopyLabel:this.state.midCopied?'Copied ✓':'Copy',
       onLicenseNameInput:this.onLicenseNameInput, onLicenseKeyInput:this.onLicenseKeyInput,
       activateLicense:this.activateLicense, deactivateLicense:this.deactivateLicense,
       aboutOpen:this.state.aboutOpen, openAbout:this.openAbout, closeAbout:this.closeAbout,
