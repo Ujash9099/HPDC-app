@@ -6,7 +6,10 @@
   "author": "Ujash Solanki",
   "main": "main.js",
   "scripts": {
+    "vendor": "node vendor.js",
+    "prestart": "node vendor.js",
     "start": "electron .",
+    "prebuild": "node vendor.js",
     "build": "electron-builder"
   },
   "devDependencies": {
