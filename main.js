@@ -6,6 +6,7 @@ const url = require('url');
 
 const ROOT = path.join(__dirname, 'renderer');
 const ENTRY = 'index.html';
+const PORT = 43117;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -48,10 +49,21 @@ function startServer(callback) {
   });
 
   server.on('error', (e) => {
+    if (e && e.code === 'EADDRINUSE') {
+      dialog.showErrorBox(
+        'Already running',
+        'HPDC Parameter Calculation appears to be open already.\n\n' +
+        'Close the existing window and try again.'
+      );
+      app.quit();
+      return;
+    }
     dialog.showErrorBox('Server error', String(e && e.message || e));
   });
 
-  server.listen(0, '127.0.0.1', () => callback(server.address().port));
+  // A FIXED port matters: the page's stored data is scoped to its origin, and a
+  // random port would hand the app a fresh, empty origin on every launch.
+  server.listen(PORT, '127.0.0.1', () => callback(PORT));
 }
 
 function createWindow(port) {
@@ -62,7 +74,11 @@ function createWindow(port) {
     minHeight: 680,
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, nodeIntegration: false }
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js')
+    }
   });
 
   Menu.setApplicationMenu(null);

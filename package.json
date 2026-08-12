@@ -19,7 +19,7 @@
   "build": {
     "appId": "com.ujashsolanki.hpdc",
     "productName": "HPDC Parameter Calculation",
-    "files": ["main.js", "renderer/**/*"],
+    "files": ["main.js", "preload.js", "renderer/**/*"],
     "win": {
       "target": "nsis"
     },
