@@ -1,0 +1,30 @@
+{
+  "name": "hpdc-parameter-calculation",
+  "productName": "HPDC Parameter Calculation",
+  "version": "1.0.0",
+  "description": "HPDC shot parameter calculator - desktop edition",
+  "author": "Ujash Solanki",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ujashsolanki.hpdc",
+    "productName": "HPDC Parameter Calculation",
+    "files": ["main.js", "renderer/**/*"],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
